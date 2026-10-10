@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import usePersistentState from '../../hooks/usePersistentState';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -1059,7 +1060,7 @@ export function DonorManagementDirectory() {
 export function DonorManagementContributions() {
   const [group, setGroup] = useState('Public & Small');
   const [showAdd, setShowAdd] = useState(false);
-  const [records, setRecords] = useState([
+  const [records, setRecords] = usePersistentState('donor-management.contributions', [
     { donor: 'Asha Nair', category: 'Online Donations', amount: 25000, date: '09 Oct 2026' },
     { donor: 'Sparsh Foods Pvt Ltd', category: 'CSR Funds', amount: 450000, date: '04 Oct 2026' },
     { donor: 'Nitin Mehta', category: 'Crowdfunding', amount: 12500, date: '01 Oct 2026' },
@@ -1070,6 +1071,12 @@ export function DonorManagementContributions() {
     'Self-Funding': ['Social Businesses', 'Mission-Linked Services', 'Session/Training Fees', 'Course Fees', 'Memberships', 'Corpus/Endowment', 'Awards', 'Social Media Income'],
   };
   const visibleRecords = records.filter((record) => categories[group].includes(record.category));
+  const groupTotal = visibleRecords.reduce((total, record) => total + record.amount, 0);
+  const largestContribution = Math.max(0, ...visibleRecords.map((record) => record.amount));
+  const categoryTotals = categories[group].map((name) => ({
+    name,
+    total: visibleRecords.filter((record) => record.category === name).reduce((sum, record) => sum + record.amount, 0),
+  }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -1086,14 +1093,14 @@ export function DonorManagementContributions() {
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={<CircleDollarSign size={18} />} label={`${group} this month`} value="₹18.6L" sub="+12.8%" tone="teal" />
-        <StatCard icon={<Users size={18} />} label="Contributions logged" value={`${visibleRecords.length + 138}`} sub="This period" tone="blue" />
-        <StatCard icon={<TrendingUp size={18} />} label="Expected funds" value="₹24.2L" sub="Upcoming" tone="amber" />
-        <StatCard icon={<CheckCircle2 size={18} />} label="Received" value="₹18.6L" sub="77% of goal" tone="green" />
+        <StatCard icon={<CircleDollarSign size={18} />} label={`${group} total`} value={`₹${groupTotal.toLocaleString('en-IN')}`} sub="Recorded contributions" tone="teal" />
+        <StatCard icon={<Users size={18} />} label="Contributions logged" value={String(visibleRecords.length)} sub="In this stream" tone="blue" />
+        <StatCard icon={<TrendingUp size={18} />} label="Largest contribution" value={`₹${largestContribution.toLocaleString('en-IN')}`} sub="In this stream" tone="amber" />
+        <StatCard icon={<CheckCircle2 size={18} />} label="Categories" value={String(categories[group].length)} sub="Available in this stream" tone="green" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {categories[group].map((name, index) => (
+        {categoryTotals.map(({ name, total }) => (
           <div key={name} className="card">
             <div className="card-body cursor-pointer hover:bg-teal-50/40" onClick={() => notifyModule(`${name} category selected`)}>
               <div className="flex items-center justify-between">
@@ -1101,7 +1108,7 @@ export function DonorManagementContributions() {
                 <StatusBadge label="Live" tone="teal" />
               </div>
               <div className="mt-4 flex items-end justify-between">
-                <div className="text-sm text-slate-600">Total: ₹{(1.2 + index * 0.47).toFixed(1)}L</div>
+                <div className="text-sm text-slate-600">Total: ₹{total.toLocaleString('en-IN')}</div>
                 <div className="flex h-9 items-end gap-1" aria-label={`${name} activity chart`}>
                   {[35, 60, 42, 75, 54, 92].map((height, bar) => <span key={bar} className="w-2 rounded-t bg-teal-400" style={{ height: `${height}%` }} />)}
                 </div>
@@ -1288,7 +1295,7 @@ export function DonorManagementCommunication() {
 }
 
 export function DonorManagementFollowUp() {
-  const [pipeline, setPipeline] = useState(donorPipeline);
+  const [pipeline, setPipeline] = usePersistentState('donor-management.pipeline', donorPipeline);
   const lanes = pipeline.map((lane) => lane.lane);
 
   const moveDonor = (donor: string, nextLane: string) => {

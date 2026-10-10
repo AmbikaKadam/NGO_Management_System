@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Avatar, DataTable, DetailDrawer, FilterBar, InfoGrid, ProgressBar, StatusBadge, ACCENT, type Column } from '../../../components/people';
 import { INTERN_DEPTS, type Intern } from './data';
 
-export default function InternListTab({ interns }: { interns: Intern[] }) {
+export default function InternListTab({ interns, onStatus }: { interns: Intern[]; onStatus: (id: string, status: Intern['status']) => void }) {
   const [search, setSearch] = useState(''); const [dept, setDept] = useState('All'); const [status, setStatus] = useState('All');
   const [selId, setSelId] = useState<string | null>(null);
   const sel = interns.find(i => i.id === selId) ?? null;
@@ -24,6 +24,7 @@ export default function InternListTab({ interns }: { interns: Intern[] }) {
       <DetailDrawer open={!!sel} onClose={() => setSelId(null)} title={sel?.name ?? ''} subtitle={sel ? `${sel.id} · ${sel.college}` : ''} accent={ACCENT.intern}>
         {sel && <div className="flex flex-col gap-6">
           <InfoGrid items={[['Internship', `${sel.project}`], ['Department', sel.dept], ['Mentor', sel.mentor], ['Status', <StatusBadge key="s" status={sel.status} />], ['Start date', sel.start], ['End date', sel.end], ['Email', sel.email], ['College', sel.college]]} />
+          <SelectField label="Intern status" value={sel.status} onChange={value => onStatus(sel.id, value as Intern['status'])} options={['Active', 'Completed', 'On Hold']} />
           <div><div className="form-label">Overall progress</div><ProgressBar value={sel.progress} color={ACCENT.intern} /></div>
         </div>}
       </DetailDrawer>

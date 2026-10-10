@@ -279,7 +279,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 /* Certificate printing (only active when a certificate preview is on the page) */
 @media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  html, body { width: 100%; height: 100%; margin: 0 !important; padding: 0 !important; }
   body:has([data-certificate]) * { visibility: hidden !important; }
   [data-certificate], [data-certificate] * { visibility: visible !important; }
-  [data-certificate] { position: fixed; inset: 8mm; display: grid; align-content: center; min-height: 260mm; background: white !important; }
+  [data-certificate] { position: fixed; inset: 0; display: grid; align-content: center; width: 100%; height: 100%; min-height: 0; box-sizing: border-box; break-inside: avoid; background: white !important; }
 }

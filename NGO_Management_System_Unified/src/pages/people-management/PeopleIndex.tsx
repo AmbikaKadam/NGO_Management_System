@@ -4,8 +4,8 @@ import { PageHeader, ACCENT } from '../../components/people';
 
 const MODULES: { to: string; title: string; desc: string; color: string; Icon: LucideIcon; tabs: string[] }[] = [
   { to: '/people-management/hr', title: 'HR Management', desc: 'Employees, departments, requirements, attendance & performance.', color: ACCENT.hr, Icon: Briefcase, tabs: ['Dashboard', 'Departments', 'Employees', 'Requirements', 'Attendance & Leave', 'Performance', 'Reports'] },
-  { to: '/people-management/interns', title: 'Intern Management', desc: 'Applications pipeline, internship work, feedback & certificates.', color: ACCENT.intern, Icon: GraduationCap, tabs: ['Dashboard', 'Applications', 'Intern List', 'Internship Work', 'Feedback', 'Certificates', 'Reports'] },
-  { to: '/people-management/volunteers', title: 'Volunteer Management', desc: 'Applications, assignments, availability, attendance & recognition.', color: ACCENT.volunteer, Icon: UserCheck, tabs: ['Dashboard', 'Applications', 'Volunteer List', 'Assignments', 'Skills & Availability', 'Attendance', 'Performance', 'Certificates', 'Reports'] },
+  { to: '/people-management/interns', title: 'Intern Management', desc: 'Applications pipeline, internship work, feedback & certificates.', color: ACCENT.intern, Icon: GraduationCap, tabs: ['Dashboard', 'Applications', 'Intern List', 'Internship Work', 'Attendance & Feedback', 'Completion & Certificate', 'Reports'] },
+  { to: '/people-management/volunteers', title: 'Volunteer Management', desc: 'Applications, assignments, availability, attendance & recognition.', color: ACCENT.volunteer, Icon: UserCheck, tabs: ['Dashboard', 'Applications', 'Volunteer List', 'Assignments', 'Skills & Availability', 'Attendance', 'Performance & Feedback', 'Certificates & Recognition', 'Reports'] },
 ];
 
 export default function PeopleIndex() {

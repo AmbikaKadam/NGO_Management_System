@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Plus, DollarSign, Warehouse, TrendingDown, AlertCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import usePersistentState from '../../hooks/usePersistentState';
+import { Modal, SelectField, TextField } from '../../components/people';
 
 const budgetData = [
   { project: 'Clean Water', allocated: 850000, spent: 578000 },
@@ -18,7 +20,10 @@ const expenses = [
   { category: 'Other', amount: '₹1,60,000', pct: 5, color: '#94A3B8' },
 ];
 
-const inventory = [
+interface InventoryItem { item: string; qty: number; unit: string; project: string; status: string }
+interface InventoryRequest { id: string; item: string; qty: number; requestedOn: string; status: 'Pending' }
+
+const initialInventory: InventoryItem[] = [
   { item: 'Medical Kits', qty: 120, unit: 'kits', project: 'Healthcare Outreach', status: 'Adequate' },
   { item: 'Laptops/Tablets', qty: 85, unit: 'devices', project: 'Digital Literacy Drive', status: 'Adequate' },
   { item: 'Water Purifiers', qty: 42, unit: 'units', project: 'Clean Water Initiative', status: 'Low' },
@@ -42,6 +47,30 @@ const inventoryStatus: Record<string, string> = {
 
 export default function ResourcesPage() {
   const [activeTab, setActiveTab] = useState('budget');
+  const [inventory, setInventory] = usePersistentState<InventoryItem[]>('resources.inventory', initialInventory);
+  const [requests, setRequests] = usePersistentState<InventoryRequest[]>('resources.inventory.requests', []);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [requestItem, setRequestItem] = useState<InventoryItem | null>(null);
+  const [itemForm, setItemForm] = useState({ item: '', qty: '', unit: '', project: '', status: 'Adequate' });
+  const [requestQty, setRequestQty] = useState('');
+
+  const addInventoryItem = () => {
+    const qty = Number(itemForm.qty);
+    if (!itemForm.item.trim() || !itemForm.unit.trim() || !itemForm.project.trim() || !Number.isFinite(qty) || qty < 0) return;
+    setInventory(current => [{ item: itemForm.item.trim(), qty, unit: itemForm.unit.trim(), project: itemForm.project.trim(), status: itemForm.status }, ...current]);
+    setItemForm({ item: '', qty: '', unit: '', project: '', status: 'Adequate' });
+    setItemModalOpen(false);
+  };
+
+  const submitRequest = () => {
+    const qty = Number(requestQty);
+    if (!requestItem || !Number.isFinite(qty) || qty < 1) return;
+    setRequests(current => [{ id: `REQ-${Date.now()}`, item: requestItem.item, qty, requestedOn: new Date().toLocaleDateString('en-GB'), status: 'Pending' }, ...current]);
+    setRequestItem(null);
+    setRequestQty('');
+  };
+
+  const openAddItem = () => { setActiveTab('inventory'); setItemModalOpen(true); };
 
   return (
     <div className="flex flex-col gap-5">
@@ -50,7 +79,7 @@ export default function ResourcesPage() {
           <h1 className="page-title">Resources & Budget</h1>
           <p className="page-subtitle">Monitor budgets, expenses, inventory, and funding sources</p>
         </div>
-        <button className="btn-primary"><Plus size={16} /> Add Resource</button>
+        <button className="btn-primary" onClick={openAddItem}><Plus size={16} /> Add Resource</button>
       </div>
 
       {/* Stats */}
@@ -59,7 +88,7 @@ export default function ResourcesPage() {
           { label: 'Total Annual Budget', value: '₹4.8 Cr', icon: <DollarSign size={18} />, color: '#1AACB8' },
           { label: 'Spent YTD', value: '₹3.2 Cr', icon: <TrendingDown size={18} />, color: '#6366F1' },
           { label: 'Remaining', value: '₹1.6 Cr', icon: <Warehouse size={18} />, color: '#10B981' },
-          { label: 'Critical Inventory Items', value: '1', icon: <AlertCircle size={18} />, color: '#EF4444' },
+          { label: 'Critical Inventory Items', value: String(inventory.filter(item => item.status === 'Critical').length), icon: <AlertCircle size={18} />, color: '#EF4444' },
         ].map(s => (
           <div key={s.label} className="stat-card flex items-center gap-3">
             <div className="p-2.5 rounded-xl" style={{ background: s.color + '15' }}>
@@ -191,7 +220,7 @@ export default function ResourcesPage() {
         <div className="card overflow-hidden">
           <div className="card-header">
             <span className="card-title">Material Inventory</span>
-            <button className="btn-primary text-xs py-1.5"><Plus size={13} /> Add Item</button>
+            <button className="btn-primary text-xs py-1.5" onClick={() => setItemModalOpen(true)}><Plus size={13} /> Add Item</button>
           </div>
           <div className="overflow-x-auto">
             <table className="data-table w-full">
@@ -199,19 +228,25 @@ export default function ResourcesPage() {
                 <tr><th>Item</th><th>Quantity</th><th>Unit</th><th>Project</th><th>Status</th><th>Action</th></tr>
               </thead>
               <tbody>
-                {inventory.map((item, i) => (
-                  <tr key={i}>
+                {inventory.map(item => (
+                  <tr key={item.item}>
                     <td className="font-semibold text-slate-800">{item.item}</td>
                     <td className="font-bold text-slate-700">{item.qty}</td>
                     <td className="text-xs text-slate-500">{item.unit}</td>
                     <td className="text-xs text-slate-600">{item.project}</td>
                     <td><span className={inventoryStatus[item.status]}>{item.status}</span></td>
-                    <td><button className="btn-secondary text-xs py-1">Request More</button></td>
+                    <td><button className="btn-secondary text-xs py-1" onClick={() => { setRequestItem(item); setRequestQty(''); }}>Request More</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {requests.length > 0 && <div className="border-t border-slate-100 p-5">
+            <h3 className="text-sm font-bold text-slate-800 mb-3">Supply Requests</h3>
+            <div className="overflow-x-auto"><table className="data-table w-full"><thead><tr><th>Item</th><th>Quantity</th><th>Requested</th><th>Status</th></tr></thead>
+              <tbody>{requests.map(request => <tr key={request.id}><td className="font-semibold">{request.item}</td><td>{request.qty}</td><td>{request.requestedOn}</td><td><span className="badge badge-yellow">{request.status}</span></td></tr>)}</tbody>
+            </table></div>
+          </div>}
         </div>
       )}
 
@@ -231,6 +266,19 @@ export default function ResourcesPage() {
           ))}
         </div>
       )}
+
+      <Modal open={itemModalOpen} onClose={() => setItemModalOpen(false)} title="Add Inventory Item" submitLabel="Add Item" onSubmit={addInventoryItem}>
+        <TextField label="Item name" value={itemForm.item} onChange={value => setItemForm(current => ({ ...current, item: value }))} required wide />
+        <TextField label="Quantity" type="number" value={itemForm.qty} onChange={value => setItemForm(current => ({ ...current, qty: value }))} required />
+        <TextField label="Unit" value={itemForm.unit} onChange={value => setItemForm(current => ({ ...current, unit: value }))} required />
+        <TextField label="Project" value={itemForm.project} onChange={value => setItemForm(current => ({ ...current, project: value }))} required wide />
+        <SelectField label="Stock status" value={itemForm.status} onChange={value => setItemForm(current => ({ ...current, status: value }))} options={['Adequate', 'Low', 'Critical']} />
+      </Modal>
+
+      <Modal open={!!requestItem} onClose={() => setRequestItem(null)} title={`Request ${requestItem?.item ?? 'supplies'}`} submitLabel="Submit Request" onSubmit={submitRequest}>
+        {requestItem && <div className="sm:col-span-2 text-sm text-slate-600">Current stock: {requestItem.qty} {requestItem.unit}</div>}
+        <TextField label="Quantity requested" type="number" value={requestQty} onChange={setRequestQty} required />
+      </Modal>
     </div>
   );
 }

@@ -7,7 +7,8 @@ interface Props { employees: Employee[]; requirements: Requirement[] }
 
 export default function DashboardTab({ employees, requirements }: Props) {
   const pending = requirements.filter(r => r.status !== 'Filled').length;
-  const recent = employees.filter(e => e.joinDate.includes('2025')).length;
+  const currentYear = new Date().getFullYear();
+  const recent = employees.filter(e => new Date(e.joinDate).getFullYear() === currentYear).length;
   const chart = DEPT_NAMES.map(d => ({ name: d.length > 12 ? d.split(' ')[0] : d, full: d, count: employees.filter(e => e.dept === d).length }));
   const joiners = [...employees].sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime()).slice(0, 5);
 
@@ -18,7 +19,7 @@ export default function DashboardTab({ employees, requirements }: Props) {
         <StatCard label="Active Employees" value={employees.filter(e => e.status === 'Active').length} icon={<UserCheck size={18} />} color="#10B981" />
         <StatCard label="Departments" value={DEPT_NAMES.length} icon={<Building2 size={18} />} color={ACCENT.hr} />
         <StatCard label="Pending Requirements" value={pending} icon={<ClipboardList size={18} />} color="#F59E0B" />
-        <StatCard label="New Employees" value={recent} icon={<UserPlus size={18} />} color="#1AACB8" />
+        <StatCard label="New Employees (YTD)" value={recent} icon={<UserPlus size={18} />} color="#1AACB8" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="card lg:col-span-2">

@@ -1,3 +1,5 @@
+import type { RatingReview } from '../../../lib/peopleRating';
+
 export const STAGES = ['New', 'Under Review', 'Shortlisted', 'Selected', 'Rejected'] as const;
 export type Stage = typeof STAGES[number];
 export const TASK_STATUSES = ['To Do', 'In Progress', 'Done'] as const;
@@ -8,10 +10,12 @@ export interface Applicant {
   id: string; name: string; email: string; phone: string; position: string; dept: string; stage: Stage; appliedOn: string;
   college: string; degree: string; gradYear: string; cgpa: string; skills: string[]; resume: string; history: { date: string; event: string }[];
 }
+export type AttendanceStatus = 'Present' | 'Late' | 'Absent';
+export interface AttendanceEntry { date: string; status: AttendanceStatus; note?: string }
 export interface Intern {
   id: string; name: string; email: string; dept: string; mentor: string; start: string; end: string;
   status: 'Active' | 'Completed' | 'On Hold'; project: string; progress: number; attendance: number; rating: number;
-  feedback: { date: string; text: string }[]; finalFeedback: string; certificate: 'Pending' | 'Generated'; college: string;
+  feedback: { date: string; text: string }[]; finalFeedback: string; certificate: 'Pending' | 'Generated'; college: string; ratingReviews?: RatingReview[]; attendanceHistory?: AttendanceEntry[];
 }
 export interface Task { id: string; internId: string; project: string; title: string; status: TaskStatus }
 

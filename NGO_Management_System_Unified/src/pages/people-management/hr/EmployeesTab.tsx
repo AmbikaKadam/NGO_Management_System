@@ -2,18 +2,20 @@ import { useState } from 'react';
 import { Plus, Eye } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line } from 'recharts';
 import { Avatar, DataTable, DetailDrawer, FilterBar, InfoGrid, Modal, SectionTitle, SelectField, StatusBadge, SubTabs, TextField, ACCENT, ProgressBar, type Column } from '../../../components/people';
-import { DEPT_NAMES, ROLES, attendanceHistory, feedbackFor, ratingHistory, type Employee, type EmpStatus, type LeaveRecord } from './data';
+import { DEPT_NAMES, ROLES, departments, attendanceHistory, feedbackFor, ratingHistory, type AttendanceEntry, type Employee, type EmpStatus, type LeaveRecord } from './data';
 
-interface Props { employees: Employee[]; leaves: LeaveRecord[]; onAdd: (e: Employee) => void; addOpen: boolean; setAddOpen: (b: boolean) => void }
+interface Props { employees: Employee[]; leaves: LeaveRecord[]; attendanceEntries: AttendanceEntry[]; onAdd: (e: Employee) => void; onUpdate: (e: Employee) => void; onStatus: (id: string, status: EmpStatus) => void; addOpen: boolean; setAddOpen: (b: boolean) => void }
 const SUB = ['Personal Details', 'Contact Details', 'Department & Role', 'Qualifications', 'Employment Info', 'Attendance & Leave', 'Performance History'];
 const blank = { name: '', email: '', phone: '', dept: DEPT_NAMES[0], role: ROLES[0], status: 'Active' as EmpStatus, joinDate: '', gender: 'Female', degree: '', institution: '' };
 
-export default function EmployeesTab({ employees, leaves: allLeaves, onAdd, addOpen, setAddOpen }: Props) {
+export default function EmployeesTab({ employees, leaves: allLeaves, attendanceEntries, onAdd, onUpdate, onStatus, addOpen, setAddOpen }: Props) {
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState('All'); const [role, setRole] = useState('All'); const [status, setStatus] = useState('All');
   const [sel, setSel] = useState<Employee | null>(null);
   const [sub, setSub] = useState(SUB[0]);
   const [f, setF] = useState(blank);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', dept: DEPT_NAMES[0], role: ROLES[0], status: 'Active' as EmpStatus, joinDate: '' });
   const set = (k: keyof typeof blank) => (v: string) => setF(p => ({ ...p, [k]: v }));
 
   const rows = employees.filter(e =>
@@ -42,6 +44,25 @@ export default function EmployeesTab({ employees, leaves: allLeaves, onAdd, addO
     { header: '', render: e => <button className="p-1.5 rounded hover:bg-teal-50 text-slate-400 hover:text-teal-600" aria-label={`View ${e.name}`} onClick={ev => { ev.stopPropagation(); open(e); }}><Eye size={14} /></button> },
   ];
   const open = (e: Employee) => { setSel(e); setSub(SUB[0]); };
+  const updateStatus = (employee: Employee, nextStatus: EmpStatus) => {
+    onStatus(employee.id, nextStatus);
+    setSel(current => current?.id === employee.id ? { ...current, status: nextStatus } : current);
+  };
+  const editEmployee = () => {
+    if (!sel) return;
+    setEditForm({ name: sel.name, email: sel.email, phone: sel.phone, dept: sel.dept, role: sel.role, status: sel.status, joinDate: sel.joinDate });
+    setEditOpen(true);
+  };
+  const saveEmployee = () => {
+    if (!sel || !editForm.name.trim() || !editForm.email.trim()) return;
+    const updated: Employee = {
+      ...sel, ...editForm, name: editForm.name.trim(), email: editForm.email.trim(),
+      manager: departments.find(department => department.name === editForm.dept)?.head ?? sel.manager,
+    };
+    onUpdate(updated);
+    setSel(updated);
+    setEditOpen(false);
+  };
   const leaves = sel ? allLeaves.filter(l => l.employeeId === sel.id) : [];
 
   return (
@@ -71,6 +92,7 @@ export default function EmployeesTab({ employees, leaves: allLeaves, onAdd, addO
 
       <DetailDrawer open={!!sel} onClose={() => setSel(null)} title={sel?.name ?? ''} subtitle={sel ? `${sel.id} · ${sel.role}` : ''} accent={ACCENT.hr}>
         {sel && (<>
+          <div className="mb-3 flex justify-end"><button className="btn-secondary text-xs" onClick={editEmployee}>Edit Employee</button></div>
           <SubTabs tabs={SUB} active={sub} onChange={setSub} accent={ACCENT.hr} />
           {sub === 'Personal Details' && <InfoGrid items={[['Full name', sel.name], ['Gender', sel.gender], ['Date of birth', sel.dob], ['Employee ID', sel.id], ['Address', sel.address]]} />}
           {sub === 'Contact Details' && <InfoGrid items={[['Email', sel.email], ['Phone', sel.phone], ['Address', sel.address], ['Emergency contact', sel.emergency]]} />}
@@ -78,8 +100,9 @@ export default function EmployeesTab({ employees, leaves: allLeaves, onAdd, addO
           {sub === 'Qualifications' && (sel.qualifications.length ? <ul className="flex flex-col gap-3">{sel.qualifications.map((q, i) => <li key={i} className="p-3 rounded-lg bg-slate-50"><div className="text-sm font-semibold text-slate-800">{q.degree}</div><div className="text-xs text-slate-500">{q.institution} {q.year && `· ${q.year}`}</div></li>)}</ul> : <p className="text-sm text-slate-500">No qualifications recorded.</p>)}
           {sub === 'Employment Info' && <InfoGrid items={[['Status', <StatusBadge key="s" status={sel.status} />], ['Join date', sel.joinDate], ['Employment type', sel.employmentType], ['Location', sel.location]]} />}
           {sub === 'Attendance & Leave' && (<div className="flex flex-col gap-5">
+            <p className="text-xs text-slate-500">{attendanceEntries.some(entry => entry.employeeId === sel.id) ? 'Based on recorded daily attendance.' : 'Demo baseline; no daily entries recorded.'}</p>
             <ProgressBar value={sel.attendance} color={ACCENT.hr} />
-            <div style={{ height: 180 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={attendanceHistory(sel)}><CartesianGrid strokeDasharray="3 3" stroke="#E8EEF4" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis domain={[50, 100]} tick={{ fontSize: 11 }} /><Tooltip /><Area dataKey="percent" name="Attendance %" stroke="#1AACB8" fill="#E6F7F9" /></AreaChart></ResponsiveContainer></div>
+            <div style={{ height: 180 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={attendanceHistory(sel, attendanceEntries)}><CartesianGrid strokeDasharray="3 3" stroke="#E8EEF4" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip /><Area dataKey="percent" name="Attendance %" stroke="#1AACB8" fill="#E6F7F9" /></AreaChart></ResponsiveContainer></div>
             <SectionTitle>Leave history</SectionTitle>
             {leaves.length ? leaves.map(l => <div key={l.id} className="flex justify-between text-sm py-1.5 border-b border-slate-100"><span>{l.type} · {l.from}–{l.to} ({l.days}d)</span><StatusBadge status={l.status} /></div>) : <p className="text-sm text-slate-500">No leave records.</p>}
           </div>)}
@@ -89,6 +112,15 @@ export default function EmployeesTab({ employees, leaves: allLeaves, onAdd, addO
           </div>)}
         </>)}
       </DetailDrawer>
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Employee" submitLabel="Save Changes" onSubmit={saveEmployee}>
+        <TextField label="Full name" value={editForm.name} onChange={value => setEditForm(current => ({ ...current, name: value }))} required wide />
+        <TextField label="Email" type="email" value={editForm.email} onChange={value => setEditForm(current => ({ ...current, email: value }))} required />
+        <TextField label="Phone" value={editForm.phone} onChange={value => setEditForm(current => ({ ...current, phone: value }))} />
+        <SelectField label="Department" value={editForm.dept} onChange={value => setEditForm(current => ({ ...current, dept: value }))} options={DEPT_NAMES} />
+        <SelectField label="Role" value={editForm.role} onChange={value => setEditForm(current => ({ ...current, role: value }))} options={ROLES} />
+        <SelectField label="Status" value={editForm.status} onChange={value => setEditForm(current => ({ ...current, status: value as EmpStatus }))} options={['Active', 'On Leave', 'Inactive']} />
+        <TextField label="Join date" value={editForm.joinDate} onChange={value => setEditForm(current => ({ ...current, joinDate: value }))} />
+      </Modal>
     </div>
   );
 }

@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { Phone, Mail, Gift, MessageSquare, Camera, FileText, CheckCircle2, Clock, Plus } from 'lucide-react';
+import usePersistentState from '../../hooks/usePersistentState';
+import { Modal, SelectField, TextField } from '../../components/people';
 
-const taskCards = [
+interface EngagementTask {
+  id: string; profile: string; occasion: string; type: string; status: string; template: string;
+  assigned: string; remarks: string; priority: string; dueDate?: string; proof?: string;
+}
+
+const initialTaskCards: EngagementTask[] = [
   { id: 'ENG-001', profile: 'Ramesh Gupta', occasion: 'Birthday – 15 Oct', type: 'Call', status: 'Pending', template: 'Birthday Greeting Call', assigned: 'Priya Sharma', remarks: '', priority: 'High' },
   { id: 'ENG-002', profile: 'Tata Trust', occasion: 'Annual CSR Meet', type: 'Visit', status: 'Completed', template: 'Corporate Relationship', assigned: 'Sunita Roy', remarks: 'Meeting went well. Interested in Q1 partnership.', priority: 'High' },
   { id: 'ENG-003', profile: 'Sunita Mehra', occasion: 'Birthday – 22 Oct', type: 'Gift', status: 'Pending', template: 'Gift + Letter', assigned: 'Rahul Mehta', remarks: '', priority: 'Medium' },
@@ -35,6 +42,27 @@ const typeStyle: Record<string, string> = {
 export default function EngagementPage() {
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('tasks');
+  const [taskCards, setTaskCards] = usePersistentState<EngagementTask[]>('engagement.tasks', initialTaskCards);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [remarkDraft, setRemarkDraft] = useState('');
+  const [taskForm, setTaskForm] = useState({ profile: '', occasion: '', type: 'Call', template: '', assigned: '', priority: 'Medium', dueDate: '' });
+
+  const createTask = () => {
+    if (!taskForm.profile.trim() || !taskForm.occasion.trim() || !taskForm.template.trim() || !taskForm.assigned.trim()) return;
+    setTaskCards(current => [{
+      id: `ENG-${Date.now()}`, profile: taskForm.profile.trim(), occasion: taskForm.occasion.trim(),
+      type: taskForm.type, status: 'Pending', template: taskForm.template.trim(), assigned: taskForm.assigned.trim(),
+      remarks: '', priority: taskForm.priority, dueDate: taskForm.dueDate,
+    }, ...current]);
+    setTaskForm({ profile: '', occasion: '', type: 'Call', template: '', assigned: '', priority: 'Medium', dueDate: '' });
+    setTaskModalOpen(false);
+  };
+
+  const saveRemarks = (taskId: string) => setTaskCards(current => current.map(task => task.id === taskId ? { ...task, remarks: remarkDraft.trim() } : task));
+  const markComplete = (taskId: string) => setTaskCards(current => current.map(task => task.id === taskId ? { ...task, status: 'Completed' } : task));
+  const addProof = (taskId: string, file?: File) => {
+    if (file) setTaskCards(current => current.map(task => task.id === taskId ? { ...task, proof: file.name } : task));
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -43,14 +71,14 @@ export default function EngagementPage() {
           <h1 className="page-title">Engagement & Actions</h1>
           <p className="page-subtitle">End-to-end donor engagement journey from occasion to outcome</p>
         </div>
-        <button className="btn-primary"><Plus size={16} /> Create Task</button>
+        <button className="btn-primary" onClick={() => setTaskModalOpen(true)}><Plus size={16} /> Create Task</button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Tasks Due Today', value: '3', color: '#EF4444' },
-          { label: 'Completed This Week', value: '14', color: '#10B981' },
+          { label: 'Pending Tasks', value: String(taskCards.filter(task => task.status !== 'Completed').length), color: '#EF4444' },
+          { label: 'Completed Tasks', value: String(taskCards.filter(task => task.status === 'Completed').length), color: '#10B981' },
           { label: 'Call Logs (Oct)', value: '28', color: '#1AACB8' },
           { label: 'Avg Response Rating', value: '4.2 ★', color: '#F59E0B' },
         ].map(s => (
@@ -72,7 +100,7 @@ export default function EngagementPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {taskCards.map(task => (
             <div key={task.id} className={`card hover:shadow-md transition-shadow cursor-pointer ${activeTask === task.id ? 'ring-2 ring-teal-400' : ''}`}
-              onClick={() => setActiveTask(t => t === task.id ? null : task.id)}>
+              onClick={() => { setActiveTask(current => current === task.id ? null : task.id); setRemarkDraft(task.remarks); }}>
               <div className="card-body flex flex-col gap-3">
                 <div className="flex items-start justify-between">
                   <span className={typeStyle[task.type]}>{task.type}</span>
@@ -94,16 +122,19 @@ export default function EngagementPage() {
                   <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 italic">{task.remarks}</div>
                 )}
                 {activeTask === task.id && (
-                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
-                    <textarea className="form-input h-16 resize-none text-xs" placeholder="Add remarks / notes..." />
+                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-100" onClick={event => event.stopPropagation()}>
+                    <textarea className="form-input h-16 resize-none text-xs" aria-label={`Remarks for ${task.profile}`} placeholder="Add remarks / notes..." value={remarkDraft} onChange={event => setRemarkDraft(event.target.value)} />
+                    <button className="btn-secondary w-fit text-xs py-1.5" onClick={() => saveRemarks(task.id)}>Save Remarks</button>
                     <div className="flex gap-2">
-                      <button className="btn-secondary flex-1 text-xs py-1.5">
-                        <Camera size={12} /> Upload Proof
-                      </button>
-                      <button className="btn-primary flex-1 text-xs py-1.5">
+                      <label className="btn-secondary flex-1 text-xs py-1.5 justify-center cursor-pointer">
+                        <Camera size={12} /> {task.proof ? 'Replace Proof' : 'Upload Proof'}
+                        <input className="sr-only" type="file" aria-label={`Upload proof for ${task.profile}`} onChange={event => addProof(task.id, event.target.files?.[0])} />
+                      </label>
+                      <button className="btn-primary flex-1 text-xs py-1.5" disabled={task.status === 'Completed'} onClick={() => markComplete(task.id)}>
                         <CheckCircle2 size={12} /> Mark Complete
                       </button>
                     </div>
+                    {task.proof && <div className="text-xs text-slate-500"><FileText size={12} className="inline mr-1" />{task.proof}</div>}
                   </div>
                 )}
               </div>
@@ -165,6 +196,15 @@ export default function EngagementPage() {
           </div>
         </div>
       )}
+      <Modal open={taskModalOpen} onClose={() => setTaskModalOpen(false)} title="Create Engagement Task" submitLabel="Create Task" onSubmit={createTask}>
+        <TextField label="Donor / profile" value={taskForm.profile} onChange={value => setTaskForm(current => ({ ...current, profile: value }))} required wide />
+        <TextField label="Occasion or reason" value={taskForm.occasion} onChange={value => setTaskForm(current => ({ ...current, occasion: value }))} required wide />
+        <SelectField label="Action type" value={taskForm.type} onChange={value => setTaskForm(current => ({ ...current, type: value }))} options={['Call', 'Email', 'Gift', 'Visit']} />
+        <SelectField label="Priority" value={taskForm.priority} onChange={value => setTaskForm(current => ({ ...current, priority: value }))} options={['High', 'Medium', 'Low']} />
+        <TextField label="Template / action plan" value={taskForm.template} onChange={value => setTaskForm(current => ({ ...current, template: value }))} required />
+        <TextField label="Assigned to" value={taskForm.assigned} onChange={value => setTaskForm(current => ({ ...current, assigned: value }))} required />
+        <TextField label="Due date" type="date" value={taskForm.dueDate} onChange={value => setTaskForm(current => ({ ...current, dueDate: value }))} />
+      </Modal>
     </div>
   );
 }

@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { Settings, Users, Shield, Bell, Database, Key, Plus, Edit2, Trash2 } from 'lucide-react';
+import usePersistentState from '../../hooks/usePersistentState';
+import { Modal, SelectField, TextField } from '../../components/people';
+import ConfirmDialog from '../../components/projects/ConfirmDialog';
 
-const users = [
+interface AdminUser {
+  id: string; name: string; email: string; role: string; dept: string;
+  status: 'Active' | 'Inactive'; lastLogin: string; access: string;
+}
+
+const initialUsers: AdminUser[] = [
   { id: 'USR-001', name: 'Priya Sharma', email: 'priya@hopefoundation.org', role: 'Project Manager', dept: 'Project Management', status: 'Active', lastLogin: '7 Oct 2025, 9:12 AM', access: 'Full Project Access' },
   { id: 'USR-002', name: 'Rahul Mehta', email: 'rahul@hopefoundation.org', role: 'Tech Lead', dept: 'Data & Tech', status: 'Active', lastLogin: '7 Oct 2025, 8:45 AM', access: 'Full System Access' },
   { id: 'USR-003', name: 'Sunita Roy', email: 'sunita@hopefoundation.org', role: 'HR Manager', dept: 'HR', status: 'Active', lastLogin: '6 Oct 2025, 5:30 PM', access: 'HR & Volunteers' },
@@ -42,6 +50,34 @@ const systemSettings = [
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
+  const [users, setUsers] = usePersistentState<AdminUser[]>('admin.users', initialUsers);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', role: 'Staff', dept: '', status: 'Active', access: 'Read-only access' });
+  const rolesForUsers = Array.from(new Set([...roles.map(role => role.name), ...users.map(user => user.role)]));
+
+  const openAddUser = () => {
+    setEditingId(null);
+    setForm({ name: '', email: '', role: 'Staff', dept: '', status: 'Active', access: 'Read-only access' });
+    setUserModalOpen(true);
+  };
+
+  const openEditUser = (user: AdminUser) => {
+    setEditingId(user.id);
+    setForm({ name: user.name, email: user.email, role: user.role, dept: user.dept, status: user.status, access: user.access });
+    setUserModalOpen(true);
+  };
+
+  const saveUser = () => {
+    if (!form.name.trim() || !form.email.trim()) return;
+    if (editingId) {
+      setUsers(current => current.map(user => user.id === editingId ? { ...user, ...form, name: form.name.trim(), email: form.email.trim() } : user));
+    } else {
+      setUsers(current => [{ id: `USR-${String(Date.now()).slice(-6)}`, ...form, name: form.name.trim(), email: form.email.trim(), lastLogin: 'Never' }, ...current]);
+    }
+    setUserModalOpen(false);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -50,13 +86,13 @@ export default function AdminPage() {
           <h1 className="page-title">Admin & Settings</h1>
           <p className="page-subtitle">User management, access control, audit logs, and system configuration</p>
         </div>
-        <button className="btn-primary"><Plus size={16} /> Add User</button>
+        <button className="btn-primary" onClick={openAddUser}><Plus size={16} /> Add User</button>
       </div>
 
       {/* Admin stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Users', value: '74', icon: <Users size={18} />, color: '#1AACB8' },
+          { label: 'Total Users', value: String(users.length), icon: <Users size={18} />, color: '#1AACB8' },
           { label: 'Active Roles', value: '5', icon: <Shield size={18} />, color: '#6366F1' },
           { label: 'Audit Events (Today)', value: '28', icon: <Database size={18} />, color: '#F59E0B' },
           { label: 'Security Alerts', value: '2', icon: <Key size={18} />, color: '#EF4444' },
@@ -112,8 +148,8 @@ export default function AdminPage() {
                     <td><span className={u.status === 'Active' ? 'badge badge-green' : 'badge badge-gray'}>{u.status}</span></td>
                     <td>
                       <div className="flex gap-1">
-                        <button className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600"><Edit2 size={13} /></button>
-                        <button className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"><Trash2 size={13} /></button>
+                        <button className="p-1.5 rounded hover:bg-blue-50 text-slate-400 hover:text-blue-600" aria-label={`Edit ${u.name}`} onClick={() => openEditUser(u)}><Edit2 size={13} /></button>
+                        <button className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500" aria-label={`Delete ${u.name}`} onClick={() => setDeletingUser(u)}><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -199,6 +235,18 @@ export default function AdminPage() {
           ))}
         </div>
       )}
+      <Modal open={userModalOpen} onClose={() => setUserModalOpen(false)} title={editingId ? 'Edit User' : 'Add User'} submitLabel={editingId ? 'Save Changes' : 'Add User'} onSubmit={saveUser}>
+        <TextField label="Full name" value={form.name} onChange={value => setForm(current => ({ ...current, name: value }))} required wide />
+        <TextField label="Email" type="email" value={form.email} onChange={value => setForm(current => ({ ...current, email: value }))} required />
+        <SelectField label="Role" value={form.role} onChange={value => setForm(current => ({ ...current, role: value }))} options={rolesForUsers} />
+        <TextField label="Department" value={form.dept} onChange={value => setForm(current => ({ ...current, dept: value }))} required />
+        <SelectField label="Status" value={form.status} onChange={value => setForm(current => ({ ...current, status: value }))} options={['Active', 'Inactive']} />
+        <TextField label="Access level" value={form.access} onChange={value => setForm(current => ({ ...current, access: value }))} required />
+      </Modal>
+      <ConfirmDialog open={!!deletingUser} title="Delete user" message={<>Delete {deletingUser?.name}? This removes the user from this demo directory.</>} confirmLabel="Delete User" danger onCancel={() => setDeletingUser(null)} onConfirm={() => {
+        if (deletingUser) setUsers(current => current.filter(user => user.id !== deletingUser.id));
+        setDeletingUser(null);
+      }} />
     </div>
   );
 }

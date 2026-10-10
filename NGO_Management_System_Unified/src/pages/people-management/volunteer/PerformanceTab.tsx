@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Star } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Avatar, DataTable, EmptyState, ProgressBar, SelectField, TextAreaField, ACCENT, type Column } from '../../../components/people';
+import RatingReviewForm from '../../../components/people/RatingReviewForm';
 import type { Volunteer } from './data';
+import { calculateRating, type RatingReview, type RatingScores } from '../../../lib/peopleRating';
 
-export default function PerformanceTab({ volunteers, onFeedback }: { volunteers: Volunteer[]; onFeedback: (id: string, text: string) => void }) {
+export default function PerformanceTab({ volunteers, onFeedback, onRate }: { volunteers: Volunteer[]; onFeedback: (id: string, text: string) => void; onRate: (id: string, review: RatingReview) => void }) {
   const [selId, setSelId] = useState(volunteers[0]?.id ?? ''); const [text, setText] = useState('');
   const sel = volunteers.find(v => v.id === selId);
   const cols: Column<Volunteer>[] = [
@@ -31,6 +33,12 @@ export default function PerformanceTab({ volunteers, onFeedback }: { volunteers:
             {sel && sel.feedback.length ? sel.feedback.map((f, i) => <div key={i} className="p-2.5 rounded-lg bg-slate-50 text-sm text-slate-700">{f.text}<div className="text-[11px] text-slate-400 mt-1">{f.date}</div></div>) : <EmptyState title="No feedback yet" />}
             {sel && sel.history.map((h, i) => <div key={i} className="text-xs text-slate-500">• {h.date} — {h.event}</div>)}</div>
         </div></div>
+      <div className="card">
+        <div className="card-header"><h2 className="card-title">Rating Review</h2></div>
+        <div className="card-body">{sel
+          ? <RatingReviewForm key={sel.id} currentRating={sel.rating} latestReview={sel.ratingReviews?.at(-1)} onSubmit={(scores: RatingScores) => onRate(sel.id, { date: new Date().toLocaleDateString('en-GB'), rating: calculateRating(scores), scores })} />
+          : <EmptyState title="No volunteers to rate" />}</div>
+      </div>
     </div>
   );
 }

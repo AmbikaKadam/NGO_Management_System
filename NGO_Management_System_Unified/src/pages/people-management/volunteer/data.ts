@@ -1,3 +1,5 @@
+import type { RatingReview } from '../../../lib/peopleRating';
+
 export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const SLOTS = ['Morning', 'Afternoon', 'Evening'];
 export const SKILLS = ['Teaching', 'First Aid', 'Photography', 'Event Management', 'Fundraising', 'Counselling', 'Driving', 'Data Entry', 'Marathi', 'Cooking'];
@@ -7,7 +9,7 @@ export type AppStatus = typeof APP_STATUSES[number];
 export interface Volunteer {
   id: string; name: string; email: string; phone: string; city: string; age: number; status: 'Active' | 'Inactive'; joined: string;
   skills: string[]; availability: string[]; hours: number; tasksDone: number; tasksTotal: number; rating: number;
-  feedback: { date: string; text: string }[]; history: { date: string; event: string }[];
+  feedback: { date: string; text: string }[]; history: { date: string; event: string }[]; ratingReviews?: RatingReview[];
 }
 export interface VApplication { id: string; name: string; email: string; skills: string[]; motivation: string; appliedOn: string; status: AppStatus }
 export interface Assignment { id: string; volunteerId: string; kind: 'Project' | 'Event'; target: string; role: string; date: string; status: 'Upcoming' | 'Ongoing' | 'Completed'; responsibilities: string }

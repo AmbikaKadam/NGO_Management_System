@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Star } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { DataTable, ACCENT, type Column } from '../../../components/people';
+import RatingReviewForm from '../../../components/people/RatingReviewForm';
 import { feedbackFor, ratingHistory, type Employee } from './data';
+import { calculateRating, type RatingReview, type RatingScores } from '../../../lib/peopleRating';
 
-export default function PerformanceTab({ employees }: { employees: Employee[] }) {
+export default function PerformanceTab({ employees, onRate }: { employees: Employee[]; onRate: (id: string, review: RatingReview) => void }) {
   const [selId, setSelId] = useState(employees[0]?.id);
   const sel = employees.find(e => e.id === selId) ?? employees[0];
   const cols: Column<Employee>[] = [
@@ -25,6 +27,9 @@ export default function PerformanceTab({ employees }: { employees: Employee[] })
           <p className="text-sm font-semibold text-slate-800">{sel.name}</p>
           <p className="text-xs text-slate-500 mb-3">{sel.role} · {feedbackFor(sel)}</p>
           <div style={{ height: 240 }}><ResponsiveContainer width="100%" height="100%"><LineChart data={ratingHistory(sel)}><CartesianGrid strokeDasharray="3 3" stroke="#E8EEF4" /><XAxis dataKey="period" tick={{ fontSize: 10 }} /><YAxis domain={[2, 5]} tick={{ fontSize: 11 }} /><Tooltip /><Line dataKey="rating" name="Rating" stroke={ACCENT.hr} strokeWidth={2} dot /></LineChart></ResponsiveContainer></div>
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <RatingReviewForm key={sel.id} currentRating={sel.rating} latestReview={sel.ratingReviews?.at(-1)} onSubmit={(scores: RatingScores) => onRate(sel.id, { date: new Date().toLocaleDateString('en-GB'), rating: calculateRating(scores), scores })} />
+          </div>
         </div>
       </div>}
     </div>

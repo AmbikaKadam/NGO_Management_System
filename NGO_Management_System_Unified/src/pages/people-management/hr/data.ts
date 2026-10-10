@@ -1,10 +1,12 @@
+import type { RatingReview } from '../../../lib/peopleRating';
+
 export type EmpStatus = 'Active' | 'On Leave' | 'Inactive';
 
 export interface Qualification { degree: string; institution: string; year: string }
 export interface Employee {
   id: string; name: string; dept: string; role: string; status: EmpStatus; joinDate: string;
   email: string; phone: string; gender: string; dob: string; address: string; emergency: string;
-  employmentType: string; manager: string; location: string; attendance: number; rating: number;
+  employmentType: string; manager: string; location: string; attendance: number; rating: number; ratingReviews?: RatingReview[];
   qualifications: Qualification[];
 }
 export interface Department { name: string; head: string; description: string }
@@ -15,6 +17,9 @@ export interface Requirement {
 export interface LeaveRecord {
   id: string; employeeId: string; name: string; type: string; from: string; to: string; days: number;
   reason: string; status: 'Pending' | 'Approved' | 'Rejected';
+}
+export interface AttendanceEntry {
+  id: string; employeeId: string; date: string; status: 'Present' | 'Absent' | 'Late'; note: string;
 }
 
 export const DEPT_NAMES = ['Project Management', 'Administration', 'Finance', 'HR', 'Data & Tech', 'Marketing', 'Operations', 'Risk Management', 'Research & Innovation'];
@@ -77,10 +82,31 @@ export const initialLeaves: LeaveRecord[] = [
 
 /** Deterministic history series derived from the employee's current figures (mock). */
 const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
-export const attendanceHistory = (e: Employee) =>
-  MONTHS.map((month, i) => ({ month, percent: Math.max(60, Math.min(100, Math.round(e.attendance + ((i * 7 + e.name.length) % 9) - 4))) }));
-export const ratingHistory = (e: Employee) =>
-  ['H1 2023', 'H2 2023', 'H1 2024', 'H2 2024', 'H1 2025'].map((period, i, a) => ({
+const attendanceCredit = (status: AttendanceEntry['status']) => status === 'Present' ? 1 : status === 'Late' ? 0.5 : 0;
+export const attendancePercentage = (entries: AttendanceEntry[]) => entries.length
+  ? Math.round(entries.reduce((total, entry) => total + attendanceCredit(entry.status), 0) / entries.length * 100)
+  : null;
+
+export const attendanceHistory = (e: Employee, allEntries: AttendanceEntry[] = []) => {
+  const entries = allEntries.filter(entry => entry.employeeId === e.id);
+  if (entries.length) {
+    const months = new Map<string, { month: string; timestamp: number; credits: number[] }>();
+    entries.forEach(entry => {
+      const date = new Date(`${entry.date}T00:00:00`);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const group = months.get(key) ?? { month: date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), timestamp: date.getTime(), credits: [] };
+      group.credits.push(attendanceCredit(entry.status));
+      months.set(key, group);
+    });
+    return [...months.values()].sort((a, b) => a.timestamp - b.timestamp).map(group => ({
+      month: group.month, percent: Math.round(group.credits.reduce((sum, credit) => sum + credit, 0) / group.credits.length * 100),
+    }));
+  }
+  return MONTHS.map((month, i) => ({ month, percent: Math.max(60, Math.min(100, Math.round(e.attendance + ((i * 7 + e.name.length) % 9) - 4))) }));
+};
+export const ratingHistory = (e: Employee) => e.ratingReviews?.length
+  ? e.ratingReviews.map(review => ({ period: review.date, rating: review.rating }))
+  : ['H1 2023', 'H2 2023', 'H1 2024', 'H2 2024', 'H1 2025'].map((period, i, a) => ({
     period, rating: +Math.max(2.5, Math.min(5, e.rating - (a.length - 1 - i) * 0.12 + ((i * 3 + e.name.length) % 4) * 0.05)).toFixed(1),
   }));
 export const feedbackFor = (e: Employee) =>

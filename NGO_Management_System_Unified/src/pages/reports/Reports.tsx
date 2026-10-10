@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Download, BarChart3, TrendingUp, Users, DollarSign } from 'lucide-react';
+import usePersistentState from '../../hooks/usePersistentState';
+import { Modal, SelectField, TextField } from '../../components/people';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -33,14 +35,27 @@ const impactMetrics = [
   { quarter: 'Q4 (est)', beneficiaries: 12000, projects: 15, volunteers: 1284 },
 ];
 
-const reportList = [
-  { name: 'Project Status Report – Q3 2025', type: 'Project', date: '1 Oct 2025', format: 'PDF' },
-  { name: 'Donor Analytics – September 2025', type: 'Donor', date: '5 Oct 2025', format: 'Excel' },
-  { name: 'Financial Summary – H1 2025', type: 'Financial', date: '15 Jul 2025', format: 'PDF' },
-  { name: 'Volunteer Engagement Report', type: 'People', date: '30 Sep 2025', format: 'PDF' },
-  { name: 'Beneficiary Impact Report 2025', type: 'Impact', date: '20 Sep 2025', format: 'PDF' },
-  { name: 'Monthly Trends – September', type: 'Analytics', date: '2 Oct 2025', format: 'Excel' },
+interface ReportRecord { name: string; type: string; date: string; format: 'CSV' }
+
+const initialReportList: ReportRecord[] = [
+  { name: 'Project Status Report – Q3 2025', type: 'Project', date: '1 Oct 2025', format: 'CSV' },
+  { name: 'Donor Analytics – September 2025', type: 'Donor', date: '5 Oct 2025', format: 'CSV' },
+  { name: 'Financial Summary – H1 2025', type: 'Financial', date: '15 Jul 2025', format: 'CSV' },
+  { name: 'Volunteer Engagement Report', type: 'People', date: '30 Sep 2025', format: 'CSV' },
+  { name: 'Beneficiary Impact Report 2025', type: 'Impact', date: '20 Sep 2025', format: 'CSV' },
+  { name: 'Monthly Trends – September', type: 'Analytics', date: '2 Oct 2025', format: 'CSV' },
 ];
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
 
 const typeStyle: Record<string, string> = {
   Project: 'badge badge-teal',
@@ -53,6 +68,38 @@ const typeStyle: Record<string, string> = {
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('analytics');
+  const [reports, setReports] = usePersistentState<ReportRecord[]>('reports.generated', initialReportList);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [reportName, setReportName] = useState('');
+  const [reportType, setReportType] = useState('Project');
+
+  const reportRows = (report: ReportRecord): string[][] => {
+    if (report.type === 'Project') return [['Month', 'Completed Projects', 'Active Projects', 'New Projects'], ...projectMetrics.map(row => [row.month, String(row.completed), String(row.active), String(row.new)])];
+    if (report.type === 'Impact') return [['Quarter', 'Beneficiaries', 'Projects', 'Volunteers'], ...impactMetrics.map(row => [row.quarter, String(row.beneficiaries), String(row.projects), String(row.volunteers)])];
+    if (report.type === 'People') return [['Department', 'Total Tasks', 'Completed Tasks'], ...taskCompletion.map(row => [row.dept, String(row.total), String(row.completed)])];
+    if (report.type === 'Analytics') return [['Quarter', 'Beneficiaries', 'Projects', 'Volunteers'], ...impactMetrics.map(row => [row.quarter, String(row.beneficiaries), String(row.projects), String(row.volunteers)])];
+    return [['Metric', 'Value'], ...(report.type === 'Financial'
+      ? [['Financial Efficiency', '78.4%'], ['Task Completion Rate', '91.2%']]
+      : [['Engagement Analytics', '82%'], ['Beneficiary Growth', '+4,820']])];
+  };
+
+  const downloadReport = (report: ReportRecord) => {
+    const filename = `${report.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`;
+    downloadCsv(filename, reportRows(report));
+  };
+
+  const generateReport = () => {
+    if (!reportName.trim()) return;
+    const report: ReportRecord = {
+      name: reportName.trim(), type: reportType,
+      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), format: 'CSV',
+    };
+    setReports(current => [report, ...current]);
+    downloadReport(report);
+    setReportName('');
+    setGenerateOpen(false);
+    setActiveTab('reports');
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -62,8 +109,8 @@ export default function ReportsPage() {
           <p className="page-subtitle">Comprehensive reporting across all Hope Foundation activities</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-secondary"><Download size={15} /> Export All</button>
-          <button className="btn-primary">Generate Report</button>
+          <button className="btn-secondary" onClick={() => downloadCsv('hope-foundation-reports.csv', [['Report Name', 'Type', 'Date', 'Format'], ...reports.map(report => [report.name, report.type, report.date, report.format])])}><Download size={15} /> Export All</button>
+          <button className="btn-primary" onClick={() => setGenerateOpen(true)}>Generate Report</button>
         </div>
       </div>
 
@@ -172,7 +219,7 @@ export default function ReportsPage() {
         <div className="card overflow-hidden">
           <div className="card-header">
             <span className="card-title">Generated Reports</span>
-            <span className="text-xs text-slate-400">{reportList.length} reports</span>
+            <span className="text-xs text-slate-400">{reports.length} reports</span>
           </div>
           <div className="overflow-x-auto">
             <table className="data-table w-full">
@@ -180,8 +227,8 @@ export default function ReportsPage() {
                 <tr><th>Report Name</th><th>Type</th><th>Date</th><th>Format</th><th>Actions</th></tr>
               </thead>
               <tbody>
-                {reportList.map((r, i) => (
-                  <tr key={i}>
+                {reports.map(r => (
+                  <tr key={`${r.name}-${r.date}`}>
                     <td className="font-semibold text-slate-800">{r.name}</td>
                     <td><span className={typeStyle[r.type]}>{r.type}</span></td>
                     <td className="text-xs">{r.date}</td>
@@ -189,7 +236,7 @@ export default function ReportsPage() {
                       <span className={`badge ${r.format === 'PDF' ? 'badge-red' : 'badge-green'}`}>{r.format}</span>
                     </td>
                     <td>
-                      <button className="btn-secondary text-xs py-1 flex items-center gap-1">
+                      <button className="btn-secondary text-xs py-1 flex items-center gap-1" onClick={() => downloadReport(r)}>
                         <Download size={12} /> Download
                       </button>
                     </td>
@@ -200,6 +247,10 @@ export default function ReportsPage() {
           </div>
         </div>
       )}
+      <Modal open={generateOpen} onClose={() => setGenerateOpen(false)} title="Generate Report" submitLabel="Generate & Download" onSubmit={generateReport}>
+        <TextField label="Report name" value={reportName} onChange={setReportName} required wide />
+        <SelectField label="Report type" value={reportType} onChange={setReportType} options={['Project', 'Donor', 'Financial', 'People', 'Impact', 'Analytics']} />
+      </Modal>
     </div>
   );
 }

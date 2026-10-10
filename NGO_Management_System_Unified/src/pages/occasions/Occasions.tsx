@@ -1,21 +1,31 @@
 import { useState } from 'react';
 import { Gift, Bell, Calendar, Star, Plus } from 'lucide-react';
+import usePersistentState from '../../hooks/usePersistentState';
+import { Modal, SelectField, TextAreaField, TextField } from '../../components/people';
 
-const upcomingOccasions = [
-  { name: 'Ramesh Gupta', occasion: 'Birthday', date: '15 Oct 2025', type: 'Individual', daysLeft: 8, lastEngagement: '3 months ago', priority: 'High' },
-  { name: 'Tata Trust Anniversary', occasion: 'Corporate Anniversary', date: '18 Oct 2025', type: 'Corporate', daysLeft: 11, lastEngagement: '6 months ago', priority: 'High' },
-  { name: 'Sunita Mehra', occasion: 'Birthday', date: '22 Oct 2025', type: 'Individual', daysLeft: 15, lastEngagement: '1 month ago', priority: 'Medium' },
-  { name: 'HCL Foundation Day', occasion: 'Foundation Day', date: '1 Nov 2025', type: 'Corporate', daysLeft: 25, lastEngagement: '2 months ago', priority: 'Medium' },
-  { name: 'Meena Kapoor', occasion: 'Birthday', date: '5 Nov 2025', type: 'Individual', daysLeft: 29, lastEngagement: '8 months ago', priority: 'High' },
+interface OccasionRecord {
+  id: string; name: string; occasion: string; date: string; type: string; daysLeft: number;
+  lastEngagement: string; priority: string; greetingSent?: boolean; greetingTemplate?: string;
+}
+interface GreetingTemplate { id: string; name: string; preview: string }
+
+const initialOccasions: OccasionRecord[] = [
+  { id: 'OCC-001', name: 'Ramesh Gupta', occasion: 'Birthday', date: '15 Oct 2025', type: 'Individual', daysLeft: 8, lastEngagement: '3 months ago', priority: 'High' },
+  { id: 'OCC-002', name: 'Tata Trust Anniversary', occasion: 'Corporate Anniversary', date: '18 Oct 2025', type: 'Corporate', daysLeft: 11, lastEngagement: '6 months ago', priority: 'High' },
+  { id: 'OCC-003', name: 'Sunita Mehra', occasion: 'Birthday', date: '22 Oct 2025', type: 'Individual', daysLeft: 15, lastEngagement: '1 month ago', priority: 'Medium' },
+  { id: 'OCC-004', name: 'HCL Foundation Day', occasion: 'Foundation Day', date: '1 Nov 2025', type: 'Corporate', daysLeft: 25, lastEngagement: '2 months ago', priority: 'Medium' },
+  { id: 'OCC-005', name: 'Meena Kapoor', occasion: 'Birthday', date: '5 Nov 2025', type: 'Individual', daysLeft: 29, lastEngagement: '8 months ago', priority: 'High' },
 ];
 
-const greetingTemplates = [
-  { name: 'Birthday – Individual', preview: 'Dear [Name], Wishing you a very happy birthday! On this special day, we at Hope Foundation...' },
-  { name: 'Corporate Anniversary', preview: 'Dear [Organisation], As you celebrate this important milestone, we are grateful for your...' },
-  { name: 'Festive Greetings (Diwali)', preview: 'Dear [Name], As the festival of lights approaches, we extend our warmest wishes to you...' },
-  { name: 'Year-end Thank You', preview: 'Dear [Name], As we approach the end of 2025, we want to take a moment to thank you...' },
-  { name: 'New Year Greeting', preview: 'Dear [Name], As we welcome a new year, we are filled with hope and gratitude for supporters like you...' },
+const initialGreetingTemplates: GreetingTemplate[] = [
+  { id: 'TPL-001', name: 'Birthday – Individual', preview: 'Dear [Name], Wishing you a very happy birthday! On this special day, we at Hope Foundation...' },
+  { id: 'TPL-002', name: 'Corporate Anniversary', preview: 'Dear [Organisation], As you celebrate this important milestone, we are grateful for your...' },
+  { id: 'TPL-003', name: 'Festive Greetings (Diwali)', preview: 'Dear [Name], As the festival of lights approaches, we extend our warmest wishes to you...' },
+  { id: 'TPL-004', name: 'Year-end Thank You', preview: 'Dear [Name], As we approach the end of 2025, we want to take a moment to thank you...' },
+  { id: 'TPL-005', name: 'New Year Greeting', preview: 'Dear [Name], As we welcome a new year, we are filled with hope and gratitude for supporters like you...' },
 ];
+
+const initialSettings = { autoSend: false, copyDepartmentHead: false, trackEngagement: true };
 
 const priorityStyle: Record<string, string> = {
   High: 'badge badge-red',
@@ -25,7 +35,65 @@ const priorityStyle: Record<string, string> = {
 
 export default function OccasionsPage() {
   const [activeTab, setActiveTab] = useState('upcoming');
-  const [reminderDays, setReminderDays] = useState(7);
+  const [upcomingOccasions, setUpcomingOccasions] = usePersistentState<OccasionRecord[]>('occasions.records', initialOccasions);
+  const [greetingTemplates, setGreetingTemplates] = usePersistentState<GreetingTemplate[]>('occasions.templates', initialGreetingTemplates);
+  const [reminderDays, setReminderDays] = usePersistentState('occasions.reminderDays', 7);
+  const [settings, setSettings] = usePersistentState('occasions.settings', initialSettings);
+  const [occasionModalOpen, setOccasionModalOpen] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [greetingOccasion, setGreetingOccasion] = useState<OccasionRecord | null>(null);
+  const [greetingForm, setGreetingForm] = useState({ templateId: '', message: '' });
+  const [occasionForm, setOccasionForm] = useState({ name: '', occasion: 'Birthday', date: '', type: 'Individual', priority: 'Medium' });
+  const [templateForm, setTemplateForm] = useState({ name: '', preview: '' });
+
+  const addOccasion = () => {
+    if (!occasionForm.name.trim() || !occasionForm.date) return;
+    const dateValue = new Date(`${occasionForm.date}T00:00:00`);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    setUpcomingOccasions(current => [{
+      id: `OCC-${Date.now()}`, name: occasionForm.name.trim(), occasion: occasionForm.occasion,
+      date: dateValue.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      type: occasionForm.type, daysLeft: Math.max(0, Math.ceil((dateValue.getTime() - today.getTime()) / 86400000)),
+      lastEngagement: 'No previous engagement', priority: occasionForm.priority,
+    }, ...current]);
+    setOccasionForm({ name: '', occasion: 'Birthday', date: '', type: 'Individual', priority: 'Medium' });
+    setOccasionModalOpen(false);
+  };
+
+  const openGreeting = (occasion: OccasionRecord) => {
+    const template = greetingTemplates.find(item => item.id === selectedTemplateId)
+      ?? greetingTemplates.find(item => occasion.type === 'Corporate' ? item.name.includes('Corporate') : item.name.includes('Birthday'))
+      ?? greetingTemplates[0];
+    setGreetingOccasion(occasion);
+    setGreetingForm({ templateId: template?.id ?? '', message: template?.preview.replaceAll('[Name]', occasion.name).replaceAll('[Organisation]', occasion.name) ?? '' });
+  };
+
+  const recordGreeting = () => {
+    if (!greetingOccasion || !greetingForm.message.trim()) return;
+    const template = greetingTemplates.find(item => item.id === greetingForm.templateId);
+    setUpcomingOccasions(current => current.map(occasion => occasion.id === greetingOccasion.id
+      ? { ...occasion, greetingSent: true, greetingTemplate: template?.name ?? 'Custom greeting' }
+      : occasion));
+    setGreetingOccasion(null);
+  };
+
+  const openTemplateEditor = (template?: GreetingTemplate) => {
+    setEditingTemplateId(template?.id ?? null);
+    setTemplateForm({ name: template?.name ?? '', preview: template?.preview ?? '' });
+    setTemplateModalOpen(true);
+  };
+
+  const saveTemplate = () => {
+    if (!templateForm.name.trim() || !templateForm.preview.trim()) return;
+    if (editingTemplateId) {
+      setGreetingTemplates(current => current.map(template => template.id === editingTemplateId ? { ...template, ...templateForm, name: templateForm.name.trim(), preview: templateForm.preview.trim() } : template));
+    } else {
+      setGreetingTemplates(current => [...current, { id: `TPL-${Date.now()}`, name: templateForm.name.trim(), preview: templateForm.preview.trim() }]);
+    }
+    setTemplateModalOpen(false);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -34,16 +102,16 @@ export default function OccasionsPage() {
           <h1 className="page-title">Occasions & Calendar</h1>
           <p className="page-subtitle">Track birthdays, anniversaries, and special occasions for personalized donor engagement</p>
         </div>
-        <button className="btn-primary"><Plus size={16} /> Add Occasion</button>
+        <button className="btn-primary" onClick={() => setOccasionModalOpen(true)}><Plus size={16} /> Add Occasion</button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Occasions This Month', value: '12', icon: '🎂', color: '#EC4899' },
-          { label: 'Reminders Sent (Oct)', value: '8', icon: '🔔', color: '#1AACB8' },
-          { label: 'Greetings Delivered', value: '6', icon: '✉️', color: '#10B981' },
-          { label: 'Upcoming (30 days)', value: '5', icon: '📅', color: '#6366F1' },
+          { label: 'Tracked Occasions', value: String(upcomingOccasions.length), icon: '🎂', color: '#EC4899' },
+          { label: 'Reminder Window', value: `${reminderDays} days`, icon: '🔔', color: '#1AACB8' },
+          { label: 'Greetings Recorded', value: String(upcomingOccasions.filter(occasion => occasion.greetingSent).length), icon: '✉️', color: '#10B981' },
+          { label: 'Upcoming (30 days)', value: String(upcomingOccasions.filter(occasion => occasion.daysLeft <= 30).length), icon: '📅', color: '#6366F1' },
         ].map(s => (
           <div key={s.label} className="stat-card flex items-center gap-3">
             <span className="text-2xl">{s.icon}</span>
@@ -82,8 +150,9 @@ export default function OccasionsPage() {
 
       {activeTab === 'upcoming' && (
         <div className="flex flex-col gap-3">
-          {upcomingOccasions.map((o, i) => (
-            <div key={i} className="card hover:shadow-md transition-shadow">
+          {selectedTemplateId && <div className="text-sm text-teal-700">Selected template: {greetingTemplates.find(template => template.id === selectedTemplateId)?.name}</div>}
+          {upcomingOccasions.map(o => (
+            <div key={o.id} className="card hover:shadow-md transition-shadow">
               <div className="card-body flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="p-3 rounded-xl" style={{ background: '#FCE7F3' }}>
                   <Gift size={22} style={{ color: '#EC4899' }} />
@@ -98,7 +167,7 @@ export default function OccasionsPage() {
                     <div className="text-[10px] text-slate-400">days left</div>
                   </div>
                   <span className={priorityStyle[o.priority]}>{o.priority}</span>
-                  <button className="btn-primary text-xs py-1.5">Send Greeting</button>
+                  <button className="btn-primary text-xs py-1.5" disabled={o.greetingSent} onClick={() => openGreeting(o)}>{o.greetingSent ? 'Greeting Recorded' : 'Send Greeting'}</button>
                 </div>
               </div>
             </div>
@@ -108,8 +177,8 @@ export default function OccasionsPage() {
 
       {activeTab === 'templates' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {greetingTemplates.map((t, i) => (
-            <div key={i} className="card hover:shadow-md transition-shadow">
+          {greetingTemplates.map(t => (
+            <div key={t.id} className="card hover:shadow-md transition-shadow">
               <div className="card-body flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <Star size={15} style={{ color: '#F59E0B' }} />
@@ -117,18 +186,18 @@ export default function OccasionsPage() {
                 </div>
                 <p className="text-xs text-slate-500 italic leading-relaxed">{t.preview}</p>
                 <div className="flex gap-2">
-                  <button className="btn-secondary flex-1 text-xs py-1.5">Edit Template</button>
-                  <button className="btn-primary flex-1 text-xs py-1.5">Use Template</button>
+                  <button className="btn-secondary flex-1 text-xs py-1.5" onClick={() => openTemplateEditor(t)}>Edit Template</button>
+                  <button className="btn-primary flex-1 text-xs py-1.5" onClick={() => { setSelectedTemplateId(t.id); setActiveTab('upcoming'); }}>Use Template</button>
                 </div>
               </div>
             </div>
           ))}
-          <div className="card border-2 border-dashed border-slate-200 hover:border-teal-300 transition-all cursor-pointer">
+          <button className="card border-2 border-dashed border-slate-200 hover:border-teal-300 transition-all text-center" onClick={() => openTemplateEditor()}>
             <div className="card-body flex flex-col items-center justify-center gap-2 min-h-[120px] text-slate-400 hover:text-teal-500 transition-colors">
               <Plus size={24} />
               <span className="text-sm font-semibold">Create New Template</span>
             </div>
-          </div>
+          </button>
         </div>
       )}
 
@@ -136,17 +205,38 @@ export default function OccasionsPage() {
         <div className="card">
           <div className="card-header"><span className="card-title">Occasion Settings</span></div>
           <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
-            {['Reminder Email Template', 'Default Reminder Days', 'Auto-send on Birthday', 'CC to Department Head', 'Track Engagement After Send'].map(f => (
-              <div key={f} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
-                <span className="text-sm text-slate-700">{f}</span>
-                <div className="w-10 h-5 rounded-full bg-teal-400 relative cursor-pointer flex-shrink-0">
-                  <div className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow" />
-                </div>
-              </div>
-            ))}
+            {[
+              { key: 'autoSend', label: 'Auto-send on Birthday' },
+              { key: 'copyDepartmentHead', label: 'CC to Department Head' },
+              { key: 'trackEngagement', label: 'Track Engagement After Send' },
+            ].map(setting => <label key={setting.key} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+              <span className="text-sm text-slate-700">{setting.label}</span>
+              <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={settings[setting.key as keyof typeof settings]} onChange={event => setSettings(current => ({ ...current, [setting.key]: event.target.checked }))} />
+            </label>)}
           </div>
         </div>
       )}
+
+      <Modal open={occasionModalOpen} onClose={() => setOccasionModalOpen(false)} title="Add Occasion" submitLabel="Save Occasion" onSubmit={addOccasion}>
+        <TextField label="Person or organisation" value={occasionForm.name} onChange={value => setOccasionForm(current => ({ ...current, name: value }))} required wide />
+        <SelectField label="Occasion" value={occasionForm.occasion} onChange={value => setOccasionForm(current => ({ ...current, occasion: value }))} options={['Birthday', 'Corporate Anniversary', 'Foundation Day', 'Other']} />
+        <SelectField label="Relationship type" value={occasionForm.type} onChange={value => setOccasionForm(current => ({ ...current, type: value }))} options={['Individual', 'Corporate']} />
+        <TextField label="Date" type="date" value={occasionForm.date} onChange={value => setOccasionForm(current => ({ ...current, date: value }))} required />
+        <SelectField label="Priority" value={occasionForm.priority} onChange={value => setOccasionForm(current => ({ ...current, priority: value }))} options={['High', 'Medium', 'Low']} />
+      </Modal>
+
+      <Modal open={templateModalOpen} onClose={() => setTemplateModalOpen(false)} title={editingTemplateId ? 'Edit Greeting Template' : 'Create Greeting Template'} submitLabel="Save Template" onSubmit={saveTemplate}>
+        <TextField label="Template name" value={templateForm.name} onChange={value => setTemplateForm(current => ({ ...current, name: value }))} required wide />
+        <TextAreaField label="Greeting message" value={templateForm.preview} onChange={value => setTemplateForm(current => ({ ...current, preview: value }))} required wide />
+      </Modal>
+
+      <Modal open={!!greetingOccasion} onClose={() => setGreetingOccasion(null)} title={`Greeting for ${greetingOccasion?.name ?? ''}`} submitLabel="Record Greeting Sent" onSubmit={recordGreeting}>
+        <SelectField label="Template" value={greetingForm.templateId} onChange={value => {
+          const template = greetingTemplates.find(item => item.id === value);
+          setGreetingForm(current => ({ ...current, templateId: value, message: template?.preview.replaceAll('[Name]', greetingOccasion?.name ?? '').replaceAll('[Organisation]', greetingOccasion?.name ?? '') ?? current.message }));
+        }} options={greetingTemplates.map(template => template.id)} />
+        <TextAreaField label="Message" value={greetingForm.message} onChange={value => setGreetingForm(current => ({ ...current, message: value }))} required wide />
+      </Modal>
     </div>
   );
 }
