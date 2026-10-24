@@ -1,15 +1,16 @@
 # NGO Management System
 
-A frontend-only NGO operations prototype built with React, TypeScript, and Vite. It combines project management, events, beneficiaries, donor management, birthday engagement, people management, reporting, and administration. There is no backend or production authentication; project services use mock data, and some modules persist prototype state in the browser.
+NGO operations application with a React, TypeScript, and Vite frontend, a FastAPI backend, and PostgreSQL database scripts. The repository is organized into three application folders: `frontend/`, `backend/`, and `database/`.
 
 ## Requirements
 
-- Node.js 22 (see `.mise.toml`)
-- pnpm 10.34.3 (see `.mise.toml`)
+- Node.js 22 (see `frontend/.mise.toml`)
+- pnpm 10.34.3 (see `frontend/.mise.toml`)
 
 ## Development
 
 ```sh
+cd frontend
 pnpm install
 pnpm dev       # Vite on http://localhost:5174 by default
 pnpm build     # production build in dist/
@@ -21,7 +22,7 @@ Set `PORT` to override the development or preview port. The dev server uses `517
 
 ## Sign-In
 
-Open `/login` and use the demo sign-in flow to reach `/dashboard`. Credentials are not verified by a server. The app uses client-side routes and redirects unknown paths to `/login`.
+Authentication is backed by the FastAPI service and PostgreSQL. Follow [backend/README.md](backend/README.md) to configure the database and start the API, then run the Vite frontend with `npm run dev`. Open `/login` to sign in or `/register` to create a Volunteer account. Authenticated pages redirect to sign-in when the session is missing or expired.
 
 ## Modules
 
@@ -34,13 +35,22 @@ Project management routes include `/projects`, `/projects/create`, `/projects/pl
 
 ## Project Map
 
-- `src/App.tsx` registers routes; `src/components/Layout.tsx` defines the shared application shell and navigation.
-- `src/pages/` contains the feature modules; `src/components/` contains shared UI.
-- `src/services/projectApi.ts`, `src/data/`, and `src/hooks/` provide the project mock API, seed data, and data hooks.
-- `src/types/project.ts` defines project-domain types.
+- `frontend/src/App.tsx` registers routes; `frontend/src/components/Layout.tsx` defines the shared application shell and navigation.
+- `frontend/src/pages/` contains the feature modules; `frontend/src/components/` contains shared UI.
+- `frontend/src/services/` contains API clients and feature services; `frontend/src/data/` contains prototype seed data.
+- `frontend/src/types/project.ts` defines project-domain types.
 - `API_CONTRACT.md` documents the proposed project API and data model. It is a backend integration contract, not a live API.
-- `.figma/make/` contains Figma Make development and deployment integration scripts.
+- `frontend/.figma/make/` contains Figma Make development and deployment integration scripts.
+- `backend/app/` contains the FastAPI app, feature routes, authentication, and database integration.
+- `backend/alembic/` contains database migrations; `backend/tests/` contains backend tests.
+- `database/schema.sql` and `database/seed.sql` define and seed the PostgreSQL schema.
 
 ## Data and Authentication
 
-This repository contains no API server or database. Project data is mock data; changes may reset on reload. Browser-persisted prototype state is local to the current browser. The login flow and role controls are demonstrations, not security boundaries.
+The FastAPI service connects to PostgreSQL, stores Argon2 password hashes and revocable JWT sessions, and provides authenticated CRUD endpoints for the persisted NGO data tables. Resource access is checked server-side and mutations are written to the audit log. The main dashboard, project reports, and event listing/creation/update call the API.
+
+Most other React feature pages still use mock data or browser storage and are not yet connected to the backend. The application is therefore not production-ready until those service integrations and end-to-end workflows are completed and verified. See [backend/README.md](backend/README.md) for setup, endpoint conventions, and deployment requirements.
+
+## PostgreSQL
+
+`database/schema.sql` creates the PostgreSQL schema for NGO operations, and `database/seed.sql` inserts the department lookup rows. For the Windows PostgreSQL, backend environment, migration, and local server commands, follow [backend/README.md](backend/README.md#local-setup). Keep database credentials and beneficiary/donor personal data on the server, never in browser code.
